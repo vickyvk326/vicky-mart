@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { RedisModule } from './redis/redis.module';
-import { LoggerModule } from './logger/logger.module';
-import { HealthService } from './health/health.service';
-import { HealthController } from './health/health.controller';
-import { envValidationSchema } from './schema/envValidationSchema';
-import { HealthModule } from './health/health.module';
+import { LoggerModule } from './common/logger/logger.module';
+import { RedisModule } from './common/redis/redis.module';
+import { envValidationSchema } from './config/envValidationSchema';
+import { HealthController } from './modules/health/health.controller';
+import { HealthModule } from './modules/health/health.module';
+import { HealthService } from './modules/health/health.service';
+import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { HealthModule } from './health/health.module';
     RedisModule,
     LoggerModule,
     HealthModule,
+    UsersModule,
   ],
   providers: [HealthService],
   controllers: [HealthController],
