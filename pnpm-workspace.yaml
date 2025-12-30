@@ -3,4 +3,5 @@ ignoredBuiltDependencies:
   - unrs-resolver
 
 onlyBuiltDependencies:
+  - '@scarf/scarf'
   - bcrypt

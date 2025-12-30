@@ -4,6 +4,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -27,6 +28,18 @@ async function bootstrap() {
   logger.setContext('Bootstrap');
 
   app.useGlobalFilters(new AllExceptionsFilter(logger));
+
+  // app.setGlobalPrefix('api');
+
+  const config = new DocumentBuilder()
+    .setTitle('Vicky Mart API')
+    .setDescription('The Vicky Mart E-commerce API documentation')
+    .setVersion('1.0')
+    .addBearerAuth() // Adds Authorize button for JWT
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('docs', app, document);
 
   await app.listen(process.env.PORT ?? 3000);
 

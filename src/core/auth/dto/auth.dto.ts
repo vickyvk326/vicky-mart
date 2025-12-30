@@ -1,4 +1,4 @@
-import { OmitType, PartialType, PickType } from '@nestjs/mapped-types';
+import { OmitType, PartialType, PickType } from '@nestjs/swagger';
 import { IsString, MinLength } from 'class-validator';
 import { UserDto } from 'src/modules/users/dto/user.dto';
 
