@@ -1,40 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
 import { PinoLogger } from 'nestjs-pino/PinoLogger';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 import { RegisterDto, UpdateUserDto } from 'src/core/auth/dto/auth.dto';
 import { User } from 'src/modules/users/entity/user.entity';
-import { Repository } from 'typeorm';
+import { UsersRepository } from './repository/users.repository';
 @Injectable()
 export class UsersService {
   constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    private readonly userRepository: UsersRepository,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(UsersService.name);
   }
   async findAll(pagination: PaginationDto) {
-    const page = pagination.page && pagination.page > 0 ? pagination.page : 1;
-    const limit = pagination.limit || 10;
-    const skip = (page - 1) * limit;
-
-    const [users, total] = await this.userRepository.findAndCount({
-      skip: skip,
-      take: limit,
-      select: ['id', 'firstName', 'lastName', 'email', 'role', 'createdAt', 'updated_at'],
-    });
-
-    this.logger.info(`Fetched ${users.length} users for page ${page} (Total: ${total})`);
-
-    return {
-      data: users,
-      meta: {
-        total,
-        page,
-        lastPage: Math.ceil(total / limit),
-      },
-    };
+    return await this.userRepository.findAllWithPagination(pagination);
   }
 
   async findById(id: string, options: { pw?: boolean; refHash?: boolean } = {}) {

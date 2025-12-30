@@ -9,7 +9,7 @@ export interface EnvVars {
 
   REDIS_HOST: string;
   REDIS_PORT: number;
-  REDIS_PASSWORD?: string;
+  REDIS_PASSWORD: string;
 
   JWT_SECRET: string;
   JWT_ACCESS_TOKEN_EXPIRY: string;

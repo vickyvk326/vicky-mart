@@ -30,6 +30,7 @@ import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis'
             limit: 10,
           },
         ],
+
         // Use Redis to track the counts across multiple server instances
         storage: new ThrottlerStorageRedisService({
           host: config.get('REDIS_HOST'),

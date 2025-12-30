@@ -5,7 +5,7 @@ import { COOKIE_EXPIRATION, COOKIE_NAMES, setResCookie } from '../../common/help
 import { AuthService } from './auth.service';
 import { LoginDto, RegisterDto } from './dto/auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { CustomThrottlerGuard } from './guards/throttle-guard';
+import { CustomThrottlerGuard } from './guards/throttle.guard';
 import * as jwtStrategy from './strategies/jwt-auth.strategy';
 
 @UseGuards(CustomThrottlerGuard)

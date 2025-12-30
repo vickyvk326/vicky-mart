@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { PinoLogger } from 'nestjs-pino';
 import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
+import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -25,8 +26,10 @@ async function bootstrap() {
   const logger = await app.resolve(PinoLogger);
   logger.setContext('Bootstrap');
 
+  app.useGlobalFilters(new AllExceptionsFilter(logger));
+
   await app.listen(process.env.PORT ?? 3000);
 
   logger.info(`NestJS application bootstrapped successfully on port ${process.env.PORT || 3000}`);
 }
-bootstrap();
+bootstrap().catch((error) => console.error(error));

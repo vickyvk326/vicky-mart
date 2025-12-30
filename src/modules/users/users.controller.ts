@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 
@@ -9,5 +9,10 @@ export class UsersController {
   @Get()
   async getAll(@Query() pagination: PaginationDto) {
     return this.usersService.findAll(pagination);
+  }
+
+  @Get(':id')
+  async getOne(@Param('id') id: string) {
+    return this.usersService.findById(id);
   }
 }
