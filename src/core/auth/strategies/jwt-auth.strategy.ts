@@ -6,14 +6,14 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { UserRole } from 'src/modules/users/enums/user-role.enum';
 import { EnvVars } from 'src/config/envValidationSchema';
 export interface JwtPayload {
-  sub: string; // User ID
+  sub: string;
   email: string;
-  role: UserRole; // Or use your UserRole enum
+  role: UserRole;
   iat?: number; // Issued at (added by passport-jwt)
   exp?: number; // Expiration time (added by passport-jwt)
 }
 
-const getAccessToken = (req: Request): string | null => {
+const getAccessTokenFromCookies = (req: Request): string | null => {
   let token: string | null = null;
   if (req && req.cookies) {
     token = req.cookies['access_token'] as string;
@@ -25,8 +25,8 @@ const getAccessToken = (req: Request): string | null => {
 export class JwtAuthStrategy extends PassportStrategy(Strategy) {
   constructor(configService: ConfigService<EnvVars, true>) {
     super({
-      jwtFromRequest: ExtractJwt.fromExtractors([getAccessToken, ExtractJwt.fromAuthHeaderAsBearerToken()]),
-      ignoreExpiration: false,
+      jwtFromRequest: ExtractJwt.fromExtractors([getAccessTokenFromCookies, ExtractJwt.fromAuthHeaderAsBearerToken()]),
+      ignoreExpiration: false, // Expired JWT tokens will not be authorized
       secretOrKey: configService.get('JWT_SECRET'),
     });
   }
@@ -39,3 +39,5 @@ export class JwtAuthStrategy extends PassportStrategy(Strategy) {
     };
   }
 }
+
+export type JwtUserType = ReturnType<JwtAuthStrategy['validate']>;

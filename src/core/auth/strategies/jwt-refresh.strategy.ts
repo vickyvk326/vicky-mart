@@ -6,7 +6,7 @@ import { Request } from 'express';
 import { JwtPayload } from './jwt-auth.strategy';
 import { EnvVars } from 'src/config/envValidationSchema';
 
-const getRefreshToken = (req: Request): string | null => {
+const getRefreshTokenFromCookies = (req: Request): string | null => {
   let token: string | null = null;
   if (req && req.cookies) {
     token = req.cookies['refresh_token'] as string;
@@ -17,7 +17,7 @@ const getRefreshToken = (req: Request): string | null => {
 export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
   constructor(configService: ConfigService<EnvVars, true>) {
     super({
-      jwtFromRequest: ExtractJwt.fromExtractors([getRefreshToken]),
+      jwtFromRequest: ExtractJwt.fromExtractors([getRefreshTokenFromCookies]),
       secretOrKey: configService.get('JWT_SECRET'),
       passReqToCallback: true, // Allows us to access the request in validate()
     });

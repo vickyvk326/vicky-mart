@@ -12,9 +12,9 @@ export const COOKIE_EXPIRATION = {
 
 export const setResCookie = (res: Response, name: COOKIE_NAMES, token: string, expiresInMs: number) => {
   const options: CookieOptions = {
-    httpOnly: true, // Prevents JS access (XSS protection)
-    secure: process.env.NODE_ENV === 'production', // Only HTTPS in production
-    sameSite: 'strict', // CSRF protection
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
     path: '/',
     maxAge: expiresInMs,
   };

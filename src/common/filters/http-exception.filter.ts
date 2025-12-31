@@ -1,5 +1,5 @@
 import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import { PinoLogger } from 'nestjs-pino';
 
 @Catch()
@@ -13,22 +13,36 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    const status = exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
+    const isHttpException = exception instanceof HttpException;
+    const status = isHttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const message = exception instanceof HttpException ? exception.getResponse() : 'Internal server error';
+    const exceptionResponse = isHttpException ? exception.getResponse() : null;
+    const message = isHttpException
+      ? typeof exceptionResponse === 'object'
+        ? (exceptionResponse as { message: string | string[] }).message || JSON.stringify(exceptionResponse)
+        : exceptionResponse
+      : exception instanceof Error
+        ? exception.message
+        : 'Internal server error';
 
-    this.logger.error({
-      status,
-      path: request.url,
-      method: request.method,
-      exception,
-    });
+    const stack = exception instanceof Error ? exception.stack : undefined;
+
+    this.logger.error(
+      {
+        status,
+        path: request.url,
+        method: request.method,
+        message,
+        stack,
+      },
+      isHttpException ? 'HTTP Exception' : 'Unexpected System Error',
+    );
 
     response.status(status).json({
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: request.url,
-      error: typeof message === 'string' ? message : (message as any).message || message,
+      message: Array.isArray(message) ? message[0] : message,
     });
   }
 }

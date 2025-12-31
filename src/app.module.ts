@@ -11,6 +11,9 @@ import { HealthService } from './modules/health/health.service';
 import { UsersModule } from './modules/users/users.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { ProductsModule } from './modules/products/products.module';
 
 @Module({
   imports: [
@@ -31,11 +34,10 @@ import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis'
           },
         ],
 
-        // Use Redis to track the counts across multiple server instances
         storage: new ThrottlerStorageRedisService({
-          host: config.get('REDIS_HOST'),
-          port: config.get('REDIS_PORT'),
-          password: config.get('REDIS_PASSWORD'),
+          host: config.get<string>('REDIS_HOST'),
+          port: config.get<number>('REDIS_PORT'),
+          password: config.get<string>('REDIS_PASSWORD'),
         }),
         errorMessage: 'Too many requests, please try again later.',
         setHeaders: true,
@@ -60,8 +62,9 @@ import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis'
     HealthModule,
     UsersModule,
     AuthModule,
+    ProductsModule,
   ],
-  providers: [HealthService],
-  controllers: [HealthController],
+  providers: [AppService, HealthService],
+  controllers: [AppController, HealthController],
 })
 export class AppModule {}

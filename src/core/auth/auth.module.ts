@@ -19,8 +19,8 @@ import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
       useFactory: (config: ConfigService<EnvVars, true>) => ({
         secret: config.get('JWT_SECRET'),
         signOptions: {
-          expiresIn: config.get('JWT_ACCESS_TOKEN_EXPIRY'),
           issuer: 'vicky-mart',
+          expiresIn: config.get('JWT_ACCESS_TOKEN_EXPIRY'),
         },
       }),
     }),

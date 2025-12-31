@@ -8,7 +8,8 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
-    bufferLogs: true, // buffer logs until logger is ready
+    bufferLogs: true,
+    cors: true,
   });
 
   app.use(cookieParser());
@@ -25,11 +26,7 @@ async function bootstrap() {
   );
 
   const logger = await app.resolve(PinoLogger);
-  logger.setContext('Bootstrap');
-
   app.useGlobalFilters(new AllExceptionsFilter(logger));
-
-  // app.setGlobalPrefix('api');
 
   const config = new DocumentBuilder()
     .setTitle('Vicky Mart API')
@@ -41,8 +38,9 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
 
-  await app.listen(process.env.PORT ?? 3000);
-
-  logger.info(`NestJS application bootstrapped successfully on port ${process.env.PORT || 3000}`);
+  await app.listen(process.env.PORT!);
 }
-bootstrap().catch((error) => console.error(error));
+
+bootstrap()
+  .catch(console.error)
+  .finally(() => console.log('Nest js server started on port', process.env.PORT));

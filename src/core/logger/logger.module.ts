@@ -19,7 +19,7 @@ if (!fs.existsSync(logDir)) fs.mkdirSync(logDir);
                 colorize: true,
                 singleLine: false,
                 translateTime: 'SYS:dd/mm/yyyy, h:MM:ss TT',
-                ignore: 'hostname,req,res,pid',
+                ignore: 'hostname,req,res,pid,context',
                 messageFormat: '[{context}] - {msg}',
                 hideObject: false,
               },
