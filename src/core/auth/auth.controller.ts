@@ -6,15 +6,19 @@ import { clearResCookie, COOKIE_EXPIRATION, COOKIE_NAMES, setResCookie } from '.
 import { AuthService } from './auth.service';
 import { LoginDto, RegisterDto } from './dto/auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { CustomThrottlerGuard } from './guards/throttle.guard';
 import { type JwtUserType } from './strategies/jwt-auth.strategy';
+import { Public } from 'src/common/decorators/public.decorator';
+import { Throttle } from '@nestjs/throttler';
+import { CustomThrottlerGuard } from './guards/throttle.guard';
 
-@UseGuards(CustomThrottlerGuard)
 @Controller('auth')
+@UseGuards(JwtAuthGuard, CustomThrottlerGuard)
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
+  @Throttle({ short: { limit: 5, ttl: 10000 } })
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Authenticate user and set cookies',
@@ -31,6 +35,7 @@ export class AuthController {
   }
 
   @Post('register')
+  @Public()
   async register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
   }
@@ -42,7 +47,6 @@ export class AuthController {
     responses: { 200: { description: 'Success' }, 401: { description: 'Unauthorized' } },
     operationId: 'logout',
   })
-  @UseGuards(JwtAuthGuard)
   async logout(@GetUser('id') userId: JwtUserType['id'], @Res({ passthrough: true }) response: Response) {
     clearResCookie(response, COOKIE_NAMES.ACCESS_TOKEN);
     clearResCookie(response, COOKIE_NAMES.REFRESH_TOKEN);
@@ -50,7 +54,6 @@ export class AuthController {
   }
 
   @Get('whoami')
-  @UseGuards(JwtAuthGuard)
   whoami(@GetUser() user: JwtUserType) {
     return user;
   }

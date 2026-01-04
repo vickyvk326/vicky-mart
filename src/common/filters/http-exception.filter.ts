@@ -27,22 +27,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     const stack = exception instanceof Error ? exception.stack : undefined;
 
-    this.logger.error(
-      {
-        status,
-        path: request.url,
-        method: request.method,
-        message,
-        stack,
-      },
-      isHttpException ? 'HTTP Exception' : 'Unexpected System Error',
-    );
+    this.logger.error(`${request.ip} [${request.method}] ${request.url}\n${stack}`);
 
     response.status(status).json({
-      statusCode: status,
+      success: false,
       timestamp: new Date().toISOString(),
+      statusCode: status,
       path: request.url,
-      message: Array.isArray(message) ? message[0] : message,
+      error: {
+        message: Array.isArray(message) ? message[0] : message,
+        type: isHttpException ? exception.constructor.name : 'InternalServerErrorException',
+      },
     });
   }
 }

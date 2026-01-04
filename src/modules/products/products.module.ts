@@ -9,11 +9,12 @@ import { SubCategory } from './entity/subCategory.entity';
 import { Category } from './entity/category.entity';
 import { ProductImage } from './entity/product-image.entity';
 import { ProductAttribute } from './entity/product-attribute.entity';
+import { CategoryRepository } from './repository/category.repository';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Product, Category, SubCategory, ProductImage, ProductAttribute])],
   controllers: [ProductsController],
-  providers: [ProductsRepository, SubCategoryRepository, ProductsService],
-  exports: [],
+  providers: [ProductsRepository, CategoryRepository, SubCategoryRepository, ProductsService],
+  exports: [ProductsService],
 })
 export class ProductsModule {}

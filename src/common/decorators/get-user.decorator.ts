@@ -2,17 +2,18 @@ import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 import { type Request } from 'express';
 import { JwtUserType } from 'src/core/auth/strategies/jwt-auth.strategy';
 
+type userKey = keyof JwtUserType;
+
 export const GetUser = createParamDecorator(
-  <K extends keyof JwtUserType>(
-    data: K | undefined,
-    ctx: ExecutionContext,
-  ): JwtUserType | JwtUserType[K] | undefined => {
+  (data: userKey | undefined, ctx: ExecutionContext): JwtUserType | JwtUserType[userKey] | undefined => {
     const request = ctx.switchToHttp().getRequest<Request>();
-    const user = request.user as JwtUserType | undefined;
+
+    // Cast 'user' to your specific type to remove 'any' or 'unsafe' warnings
+    const user = request.user;
 
     if (!user) return undefined;
 
-    const value = data ? user[data] : user;
-    return value;
+    // If data (key) is provided, return that specific property, else return the whole user
+    return data ? user[data] : user;
   },
 );

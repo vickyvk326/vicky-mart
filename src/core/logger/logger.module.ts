@@ -11,6 +11,7 @@ if (!fs.existsSync(logDir)) fs.mkdirSync(logDir);
     PinoLoggerModule.forRoot({
       pinoHttp: {
         level: 'debug',
+        autoLogging: false,
         transport: {
           targets: [
             {

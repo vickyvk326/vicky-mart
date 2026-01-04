@@ -1,7 +1,16 @@
-import { Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { ProductAttribute } from './product-attribute.entity';
 import { ProductImage } from './product-image.entity';
 import { SubCategory } from './subCategory.entity';
+import { Exclude } from 'class-transformer';
 
 @Entity('products')
 export class Product {
@@ -9,6 +18,7 @@ export class Product {
   id: string;
 
   @Column({ unique: true })
+  @Exclude()
   pid: string;
 
   @Column()
@@ -43,4 +53,10 @@ export class Product {
 
   @OneToMany(() => ProductAttribute, (attr) => attr.product, { cascade: true })
   attributes: ProductAttribute[];
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }

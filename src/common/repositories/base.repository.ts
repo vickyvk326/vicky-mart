@@ -46,6 +46,13 @@ export abstract class BaseRepository<T extends ObjectLiteral> {
   }
 
   /**
+   * Find One: Returns a single record from the database.
+   */
+  async findOneBy(options: FindOptionsWhere<T>): Promise<T | null> {
+    return await this.entityRepository.findOneBy(options);
+  }
+
+  /**
    * Create: Creates a new record instance (Synchronous, no try/catch needed).
    */
   create(data: DeepPartial<T>): T {

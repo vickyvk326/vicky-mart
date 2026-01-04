@@ -1,10 +1,12 @@
 import { Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { Product } from './product.entity';
 import { Category } from './category.entity';
+import { Exclude } from 'class-transformer';
 
 @Entity('sub_categories')
 export class SubCategory {
   @PrimaryGeneratedColumn('uuid')
+  @Exclude()
   id: string;
 
   @Column()

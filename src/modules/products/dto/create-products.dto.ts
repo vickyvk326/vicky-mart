@@ -41,6 +41,10 @@ export class CreateProductDto {
   @IsNotEmpty()
   subCategoryName: string; // We'll use this to find/create the entity
 
+  @IsString()
+  @IsNotEmpty()
+  categoryName: string; // We'll use this to find/create the entity
+
   @IsArray()
   @IsString({ each: true }) // Validates every item in the array is a string
   images: string[];
