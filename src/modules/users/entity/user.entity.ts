@@ -1,32 +1,29 @@
-import { UserRole } from 'src/modules/users/enums/user-role.enum';
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { UserRole } from '../enums/user-role.enum';
+import { Entity, Property, Unique, EntityRepositoryType, Enum, Opt } from '@mikro-orm/core';
+import { UsersRepository } from '../repository/users.repository';
+import { BaseEntity } from '../../../common/entity/base.entity';
 
-@Entity()
-export class User {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+@Entity({ repository: () => UsersRepository })
+export class User extends BaseEntity {
+  // automatic type inference in services
+  [EntityRepositoryType]?: UsersRepository;
 
-  @Column({ name: 'first_name' })
-  firstName: string;
+  @Property()
+  firstName!: string;
 
-  @Column({ name: 'last_name', default: '' })
-  lastName: string;
+  @Property()
+  lastName!: string;
 
-  @Column({ unique: true })
-  email: string;
+  @Property()
+  @Unique()
+  email!: string;
 
-  @Column()
-  password: string;
+  @Property({ hidden: true }) // skip this field in JSON output
+  password!: string;
 
-  @Column({ type: 'enum', enum: UserRole, default: UserRole.CUSTOMER })
-  role: UserRole;
+  @Enum({ items: () => UserRole, default: UserRole.CUSTOMER })
+  role: UserRole & Opt = UserRole.CUSTOMER;
 
-  @Column({ type: 'text', nullable: true })
+  @Property({ nullable: true })
   refreshTokenHash: string | null;
-
-  @CreateDateColumn({ name: 'created_at' })
-  createdAt: Date;
-
-  @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt: Date;
 }

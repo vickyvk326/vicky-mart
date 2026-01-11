@@ -1,12 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import Redis from 'ioredis';
-import { DataSource } from 'typeorm';
+import { EntityManager } from '@mikro-orm/postgresql';
 
 @Injectable()
 export class HealthService {
   constructor(
-    private readonly dataSource: DataSource,
+    private readonly em: EntityManager,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
     private readonly logger: PinoLogger,
   ) {
@@ -14,7 +14,9 @@ export class HealthService {
   }
 
   async check() {
-    await this.dataSource.query('SELECT 1');
+    const isDbConnected = await this.em.getConnection().isConnected();
+    if (!isDbConnected) throw new Error('Database not connected');
+
     await this.redis.ping();
     this.logger.info('Health check: OK');
     return { status: 'ok' };

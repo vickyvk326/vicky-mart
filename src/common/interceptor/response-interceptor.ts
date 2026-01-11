@@ -4,7 +4,7 @@ import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 import { ClassTransformOptions, instanceToPlain } from 'class-transformer';
-import type { Request } from 'express';
+import type { FastifyRequest } from 'fastify';
 
 @Injectable()
 export class ResponseInterceptor implements NestInterceptor {
@@ -14,7 +14,7 @@ export class ResponseInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const now = Date.now();
-    const req = context.switchToHttp().getRequest<Request>();
+    const req = context.switchToHttp().getRequest<FastifyRequest>();
     const { method, url, ip } = req;
 
     return next.handle().pipe(

@@ -1,48 +1,56 @@
-import { ForbiddenException, ValidationPipe } from '@nestjs/common';
+import fastifyCookie from '@fastify/cookie';
+import { ClassSerializerInterceptor, ForbiddenException, ValidationPipe } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
+import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import compression from 'compression';
-import cookieParser from 'cookie-parser';
-import { PinoLogger } from 'nestjs-pino';
+import { Logger, PinoLogger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
-import { ResponseInterceptor } from './common/interceptor/response-interceptor';
-import { NestExpressApplication } from '@nestjs/platform-express';
 import { BotDetectionGuard } from './common/guards/bot-detection.guard';
+import { ResponseInterceptor } from './common/interceptor/response-interceptor';
 
 async function bootstrap() {
   // Initialize nestjs app
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    logger: ['error', 'warn', 'debug', 'log'],
-    bufferLogs: true,
-    cors: {
-      origin: (origin, callback) => {
-        const whitelist = ['http://localhost:3000'];
+  const app = await NestFactory.create<NestFastifyApplication>(
+    AppModule,
+    new FastifyAdapter({
+      trustProxy: true,
+    }),
+    {
+      logger: ['log', 'error', 'warn', 'debug', 'verbose'],
+      bufferLogs: true,
+      cors: {
+        origin: (origin, callback) => {
+          const whitelist = ['http://localhost:3000'];
 
-        if (!origin || whitelist.includes(origin)) {
-          callback(null, true);
-        } else {
-          callback(new ForbiddenException('Not allowed by CORS'));
-        }
+          if (!origin || whitelist.includes(origin)) {
+            callback(null, true);
+          } else {
+            callback(new ForbiddenException('Not allowed by CORS'));
+          }
+        },
+        credentials: true,
+        methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+        allowedHeaders: 'Content-Type, Accept, Authorization',
       },
-      credentials: true,
-      methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-      allowedHeaders: 'Content-Type, Accept, Authorization',
+    },
+  );
+
+  app.useLogger(app.get(Logger));
+
+  await app.register(fastifyCookie, {
+    parseOptions: {
+      httpOnly: true, // Prevents XSS for your JWT tokens
+      secure: process.env.NODE_ENV === 'production',
     },
   });
-
-  // Middlewares
-
-  // Enable cookie parsing
-  app.use(cookieParser());
 
   // Enable gzip compression
   app.use(
     compression({
-      // Only compress responses larger than 1kb
-      threshold: 1024,
-      // Default level is 6 (balance of speed vs. size)
-      level: 6,
+      threshold: 1024, // Only compress responses larger than 1kb
+      level: 6, // Default level is 6 (balance of speed vs. size)
     }),
   );
 
@@ -64,6 +72,8 @@ async function bootstrap() {
   // Interceptors
   app.useGlobalInterceptors(new ResponseInterceptor(app.get(Reflector)));
 
+  app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
+
   // Filters
   const logger = await app.resolve(PinoLogger);
   app.useGlobalFilters(new AllExceptionsFilter(logger));
@@ -78,11 +88,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
 
-  app.set('trust proxy', 1);
-
   await app.listen(process.env.PORT || 3000);
 }
 
-bootstrap()
-  .then(() => console.log('[Nest] server started on port', process.env.PORT || 3000))
-  .catch(console.error);
+bootstrap().catch(console.error);

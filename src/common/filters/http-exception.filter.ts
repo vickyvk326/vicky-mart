@@ -1,5 +1,5 @@
 import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
-import type { Request, Response } from 'express';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 import { PinoLogger } from 'nestjs-pino';
 
 @Catch()
@@ -10,8 +10,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
+    const response = ctx.getResponse<FastifyReply>();
+    const request = ctx.getRequest<FastifyRequest>();
 
     const isHttpException = exception instanceof HttpException;
     const status = isHttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
@@ -29,7 +29,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     this.logger.error(`${request.ip} [${request.method}] ${request.url}\n${stack}`);
 
-    response.status(status).json({
+    response.status(status).send({
       success: false,
       timestamp: new Date().toISOString(),
       statusCode: status,

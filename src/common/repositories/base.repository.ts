@@ -1,128 +1,85 @@
 import {
-  DeepPartial,
-  DeleteResult,
-  FindManyOptions,
-  FindOptionsWhere,
-  ObjectLiteral,
-  QueryDeepPartialEntity,
-  Repository,
-  SelectQueryBuilder,
-  UpdateResult,
-} from 'typeorm';
+  EntityRepository,
+  FilterQuery,
+  FindOptions,
+  RequiredEntityData,
+  FindOneOrFailOptions,
+  Loaded,
+  EntityData,
+  UpsertOptions,
+} from '@mikro-orm/core';
+import { NotFoundException } from '@nestjs/common';
 import { PaginationDto } from '../dto/pagination.dto';
 
-export abstract class BaseRepository<T extends ObjectLiteral> {
-  constructor(readonly entityRepository: Repository<T>) {}
+export abstract class BaseRepository<T extends { id: string | number }> extends EntityRepository<T> {
+  async findAllWithPagination(
+    pagination: PaginationDto,
+    where: FilterQuery<T> = {},
+    options: FindOptions<T, any, any, any> = {},
+  ) {
+    const limit = pagination.limit ?? 10;
+    const offset = ((pagination.page ?? 1) - 1) * limit;
 
-  /**
-   * Find All: Returns all records with pagination from the database.
-   */
-  async findAllWithPagination(pagination: PaginationDto, options: FindManyOptions<T> = {}) {
-    const page = pagination.page && pagination.page > 0 ? pagination.page : 1;
-    const limit = pagination.limit || 10;
-    const skip = (page - 1) * limit;
-
-    const [data, total] = await this.entityRepository.findAndCount({
+    const [data, total] = await this.findAndCount(where, {
       ...options,
-      skip,
-      take: limit,
-    });
+      limit,
+      offset,
+    } as FindOptions<T, any, any, any>);
 
     return {
       data,
       meta: {
         total,
-        page,
+        page: pagination.page ?? 1,
         lastPage: Math.ceil(total / limit),
       },
     };
   }
 
-  /**
-   * Find One: Returns a single record from the database.
-   */
-  async findOne(options: FindManyOptions<T>): Promise<T | null> {
-    return await this.entityRepository.findOne(options);
+  // To satisfy the base class, we must match the generic signature exactly
+  override async findOneOrFail<
+    Hint extends string = never,
+    Fields extends string = '*',
+    Excludes extends string = never,
+  >(
+    where: FilterQuery<T>,
+    options?: FindOneOrFailOptions<T, Hint, Fields, Excludes>,
+  ): Promise<Loaded<T, Hint, Fields, Excludes>> {
+    // We cast to 'never' or 'unknown' before the final type to satisfy no-unsafe-argument
+    const entity = await this.findOne(where, options as FindOptions<T, Hint, Fields, Excludes>);
+
+    if (!entity) {
+      // Fix for no-base-to-string: Cast the EntityName to string explicitly
+      const name = typeof this.entityName === 'string' ? this.entityName : (this.entityName as { name: string }).name;
+      throw new NotFoundException(`${String(name)} not found`);
+    }
+
+    return entity;
   }
 
-  /**
-   * Find One: Returns a single record from the database.
-   */
-  async findOneBy(options: FindOptionsWhere<T>): Promise<T | null> {
-    return await this.entityRepository.findOneBy(options);
+  async softDelete(where: FilterQuery<T>): Promise<number> {
+    // Fix for no-unsafe-argument: use EntityData<T> type for the update object
+    const data = { deletedAt: new Date() } as unknown as EntityData<T>;
+    return this.em.nativeUpdate(this.entityName, where, data);
   }
 
-  /**
-   * Create: Creates a new record instance (Synchronous, no try/catch needed).
-   */
-  create(data: DeepPartial<T>): T {
-    return this.entityRepository.create(data);
-  }
-
-  /**
-   * Count: Returns the total number of records matching the conditions.
-   */
-  async count(options: FindManyOptions<T>): Promise<number> {
-    return await this.entityRepository.count(options);
-  }
-
-  /**
-   * Exists: Checks if any record matches the given conditions.
-   */
-  async exists(where: FindOptionsWhere<T>): Promise<boolean> {
-    const count = await this.count({ where });
-    return count > 0;
-  }
-
-  /**
-   * Update: Updates a record in the database.
-   **/
-  async update(
-    id: string | number | string[] | number[] | FindOptionsWhere<T>,
-    data: QueryDeepPartialEntity<T>,
-  ): Promise<UpdateResult> {
-    return await this.entityRepository.update(id, data);
-  }
-
-  /**
-   * Hard Delete: Permanently removes the record(s) from the database.
-   */
-  async delete(id: string | number | string[] | number[] | FindOptionsWhere<T>): Promise<DeleteResult> {
-    return await this.entityRepository.delete(id);
-  }
-
-  /**
-   * Soft Delete: Marks records as deleted without removing them.
-   */
-  async softDelete(id: string | number | string[] | number[] | FindOptionsWhere<T>): Promise<UpdateResult> {
-    return await this.entityRepository.softDelete(id);
-  }
-
-  /**
-   * Restore: Reverses a soft delete.
-   */
-  async restore(id: string | number | string[] | number[] | FindOptionsWhere<T>): Promise<UpdateResult> {
-    return await this.entityRepository.restore(id);
-  }
-
-  /**
-   * Remove: Permanently remove the record(s) using the entity instance.
-   */
-  async remove(data: T): Promise<T> {
-    return await this.entityRepository.remove(data);
-  }
-
-  /**
-   * Save: Saves a new entity or updates an existing one.
-   */
-  async save(data: T): Promise<T> {
-    return await this.entityRepository.save(data);
-  }
-
-  /**
-   * Create Query Builder: For complex queries.
-   */
-  createQueryBuilder(alias: string): SelectQueryBuilder<T> {
-    return this.entityRepository.createQueryBuilder(alias);
+  // Correct the signature to match EntityRepository.upsert exactly
+  override async upsert<Fields extends string = any>(
+    entityOrData?: T | EntityData<T>,
+    options?: UpsertOptions<T, Fields>,
+  ): Promise<T> {
+    return this.em.upsert(this.entityName, entityOrData as EntityData<T>, options);
   }
 }
+
+export type DeepPartial<T> = { [P in keyof T]?: DeepPartial<T[P]> } & { [key: string]: any };
+
+export type DeepRequired<T> = { [P in keyof T]-?: DeepRequired<T[P]> } & { [key: string]: any };
+
+export type DeepPartialRequired<T> = { [P in keyof T]-?: DeepPartialRequired<T[P]> } & { [key: string]: any };
+
+export type DeepRequiredEntityData<T> = DeepRequired<RequiredEntityData<T>>;
+
+export type DeepPartialEntityData<T> = DeepPartial<RequiredEntityData<T>>;
+
+export type DeepPartialRequiredEntityData<T> = DeepPartialRequired<RequiredEntityData<T>>;

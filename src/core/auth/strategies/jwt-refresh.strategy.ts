@@ -2,12 +2,12 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { Request } from 'express';
+import type { FastifyRequest } from 'fastify';
 import { JwtPayload } from './jwt-auth.strategy';
 import { EnvVars } from 'src/config/envValidationSchema';
 import { COOKIE_NAMES } from 'src/common/helper/cookie.helper';
 
-const getRefreshTokenFromCookies = (req: Request): string | null => {
+const getRefreshTokenFromCookies = (req: FastifyRequest): string | null => {
   let token: string | null = null;
   if (req && req.cookies) {
     token = req.cookies['refresh_token'] as string;
@@ -24,7 +24,7 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
     });
   }
 
-  validate(req: Request, payload: JwtPayload) {
+  validate(req: FastifyRequest, payload: JwtPayload) {
     const refreshToken = req.cookies?.[COOKIE_NAMES.REFRESH_TOKEN] as string;
 
     if (!refreshToken) {

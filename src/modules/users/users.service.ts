@@ -1,59 +1,58 @@
+import { EntityManager } from '@mikro-orm/core';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino/PinoLogger';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 import { RegisterDto, UpdateUserDto } from 'src/core/auth/dto/auth.dto';
-import { User } from 'src/modules/users/entity/user.entity';
 import { UsersRepository } from './repository/users.repository';
 @Injectable()
 export class UsersService {
   constructor(
     private readonly userRepository: UsersRepository,
+    private readonly em: EntityManager,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(UsersService.name);
   }
-  async findAll(pagination: PaginationDto) {
-    return await this.userRepository.findAllWithPagination(pagination);
+  async findAll(pagination: PaginationDto, options: { pw?: boolean; refHash?: boolean } = {}) {
+    const exclude: string[] = [];
+    if (!options.pw) exclude.push('password');
+    if (!options.refHash) exclude.push('refreshTokenHash');
+    return await this.userRepository.findAllWithPagination(pagination, {}, { exclude } as any);
   }
 
   async findById(id: string, options: { pw?: boolean; refHash?: boolean } = {}) {
-    const selectFields: (keyof User)[] = ['id', 'firstName', 'lastName', 'email', 'role', 'createdAt'];
+    const exclude: string[] = [];
+    if (!options.pw) exclude.push('password');
+    if (!options.refHash) exclude.push('refreshTokenHash');
 
-    if (options.pw) selectFields.push('password');
-    if (options.refHash) selectFields.push('refreshTokenHash');
-
-    return await this.userRepository.findOne({
-      where: { id },
-      select: selectFields,
-    });
+    const user = await this.userRepository.findById(id, { exclude } as any);
+    return user;
   }
 
   async findByEmail(email: string, options: { pw?: boolean; refHash?: boolean } = {}) {
-    const selectFields: (keyof User)[] = ['id', 'firstName', 'lastName', 'email', 'role', 'createdAt'];
+    const exclude: string[] = [];
+    if (!options.pw) exclude.push('password');
+    if (!options.refHash) exclude.push('refreshTokenHash');
 
-    if (options.pw) selectFields.push('password');
-    if (options.refHash) selectFields.push('refreshTokenHash');
-
-    return await this.userRepository.findOne({
-      where: { email },
-      select: selectFields,
-    });
+    const user = await this.userRepository.findByEmail(email, { exclude } as any);
+    return user;
   }
 
-  async createUser(registerDto: RegisterDto) {
-    const user = this.userRepository.create(registerDto);
-    return await this.userRepository.save(user);
+  async createUser(createUserData: RegisterDto) {
+    const user = this.userRepository.create(createUserData);
+    await this.em.persist(user).flush();
+    return user;
   }
 
   async update(id: string, data: UpdateUserDto) {
-    return await this.userRepository.update(id, data);
+    return await this.userRepository.nativeUpdate(id, data);
   }
   async updateRefreshTokenHash(userId: string, refreshTokenHash: string | null) {
-    const result = await this.userRepository.update(userId, {
+    const result = await this.userRepository.nativeUpdate(userId, {
       refreshTokenHash,
     });
 
-    if (result.affected === 0) {
+    if (result === 0) {
       throw new NotFoundException('User not found');
     }
     return result;

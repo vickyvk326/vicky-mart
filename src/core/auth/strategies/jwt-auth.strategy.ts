@@ -1,10 +1,10 @@
-import { Request } from 'express';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { UserRole } from 'src/modules/users/enums/user-role.enum';
 import { EnvVars } from 'src/config/envValidationSchema';
+import type { FastifyRequest } from 'fastify';
 export interface JwtPayload {
   sub: string;
   email: string;
@@ -13,7 +13,7 @@ export interface JwtPayload {
   exp?: number; // Expiration time (added by passport-jwt)
 }
 
-const getAccessTokenFromCookies = (req: Request): string | null => {
+const getAccessTokenFromCookies = (req: FastifyRequest): string | null => {
   let token: string | null = null;
   if (req && req.cookies) {
     token = req.cookies['access_token'] as string;

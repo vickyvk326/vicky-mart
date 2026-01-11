@@ -1,18 +1,17 @@
+import { MikroOrmModule } from '@mikro-orm/nestjs';
+import { PostgreSqlDriver } from '@mikro-orm/postgresql';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppService } from './app.service';
+import { BaseRepository } from './common/repositories/base.repository';
 import { envValidationSchema, EnvVars } from './config/envValidationSchema';
 import { AuthModule } from './core/auth/auth.module';
 import { LoggerModule } from './core/logger/logger.module';
 import { RedisModule } from './core/redis/redis.module';
 import { HealthController } from './modules/health/health.controller';
 import { HealthModule } from './modules/health/health.module';
-import { HealthService } from './modules/health/health.service';
-import { ProductsModule } from './modules/products/products.module';
-import { SeedModule } from './modules/seed/seed.module';
 import { UsersModule } from './modules/users/users.module';
 
 @Module({
@@ -39,29 +38,31 @@ import { UsersModule } from './modules/users/users.module';
         setHeaders: true,
       }),
     }),
-    TypeOrmModule.forRootAsync({
+    MikroOrmModule.forRootAsync({
+      imports: [ConfigModule],
       inject: [ConfigService],
+      driver: PostgreSqlDriver,
       useFactory: (config: ConfigService<EnvVars, true>) => ({
-        type: 'postgres',
-        host: config.get('DB_HOST'),
-        port: config.get('DB_PORT'),
-        username: config.get('DB_USERNAME'),
-        password: config.get('DB_PASSWORD'),
-        database: config.get('DB_DATABASE'),
+        driver: PostgreSqlDriver,
+        host: config.get<string>('DB_HOST'),
+        port: config.get<number>('DB_PORT'),
+        user: config.get<string>('DB_USERNAME'),
+        password: config.get<string>('DB_PASSWORD'),
+        dbName: config.get<string>('DB_DATABASE'),
+        entityRepository: BaseRepository,
         autoLoadEntities: true,
-        synchronize: config.get('NODE_ENV') === 'development',
-        logging: config.get('NODE_ENV') === 'development',
+        allowGlobalContext: false, // Security: forces request-forked EntityManager
+        debug: config.get<string>('NODE_ENV') === 'development',
       }),
     }),
+    HealthModule,
     RedisModule,
     LoggerModule,
-    HealthModule,
     UsersModule,
     AuthModule,
-    ProductsModule,
-    SeedModule,
+    // ProductsModule,
+    // SeedModule,
   ],
-  providers: [AppService, HealthService],
-  controllers: [HealthController],
+  providers: [AppService],
 })
 export class AppModule {}

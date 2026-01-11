@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import type { Request } from 'express';
+import type { FastifyRequest } from 'fastify';
 import { ROLES_KEY } from 'src/common/decorators/roles.decorator';
 import { UserRole } from 'src/modules/users/enums/user-role.enum';
 
@@ -21,7 +21,7 @@ export class RolesGuard implements CanActivate {
     }
 
     // 3. Get the user from the request (attached earlier by your JWT/Auth Guard)
-    const request = context.switchToHttp().getRequest<Request>();
+    const request = context.switchToHttp().getRequest<FastifyRequest>();
 
     const user = request.user;
 

@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import type { Request } from 'express';
+import type { FastifyRequest } from 'fastify';
 
 @Injectable()
 export class CustomThrottlerGuard extends ThrottlerGuard {
-  protected getTracker(req: Request): Promise<string> {
+  protected getTracker(req: FastifyRequest): Promise<string> {
     const user = req.user;
     const trackerId = user?.id || req.ip || 'anonymous';
     return Promise.resolve(trackerId);

@@ -1,5 +1,5 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
-import { Request } from 'express';
+import type { FastifyRequest } from 'fastify';
 
 @Injectable()
 export class BotDetectionGuard implements CanActivate {
@@ -17,7 +17,7 @@ export class BotDetectionGuard implements CanActivate {
   ];
 
   canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest<Request>();
+    const request = context.switchToHttp().getRequest<FastifyRequest>();
     const headers = request.headers;
     const userAgent = (headers['user-agent'] || '').toLowerCase();
 
