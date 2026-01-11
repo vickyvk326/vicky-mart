@@ -5,6 +5,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { Request } from 'express';
 import { JwtPayload } from './jwt-auth.strategy';
 import { EnvVars } from 'src/config/envValidationSchema';
+import { COOKIE_NAMES } from 'src/common/helper/cookie.helper';
 
 const getRefreshTokenFromCookies = (req: Request): string | null => {
   let token: string | null = null;
@@ -24,7 +25,7 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
   }
 
   validate(req: Request, payload: JwtPayload) {
-    const refreshToken = req.cookies?.['refresh_token'] as string;
+    const refreshToken = req.cookies?.[COOKIE_NAMES.REFRESH_TOKEN] as string;
 
     if (!refreshToken) {
       throw new UnauthorizedException('Refresh token missing');
