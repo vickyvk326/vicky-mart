@@ -2,11 +2,12 @@ import 'dotenv/config';
 import { defineConfig } from '@mikro-orm/postgresql';
 import { PostgreSqlDriver } from '@mikro-orm/postgresql';
 import { User } from './modules/users/entity/user.entity';
+import { JobEntity } from './scraper/entity/job.entity';
 
 console.log('DB Name from Env:', process.env.DB_DATABASE);
 
 export default defineConfig({
-  entities: [User],
+  entities: [User, JobEntity],
   dbName: process.env.DB_DATABASE,
   user: process.env.DB_USERNAME,
   password: process.env.DB_PASSWORD,

@@ -5,7 +5,6 @@ import { BaseEntity } from '../../../common/entity/base.entity';
 
 @Entity({ repository: () => UsersRepository })
 export class User extends BaseEntity {
-  // automatic type inference in services
   [EntityRepositoryType]?: UsersRepository;
 
   @Property()

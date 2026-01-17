@@ -25,6 +25,13 @@
       "src/*": ["src/*"]
     }
   },
+  "exclude": ["node_modules", "dist", "test", "logs", "**/*spec.ts"],
+  "watchOptions": {
+    "watchFile": "fixedPollingInterval",
+    "watchDirectory": "fixedPollingInterval",
+    "fallbackPolling": "dynamicPriority",
+    "excludeDirectories": ["**/node_modules", "**/dist", "**/test", "**/logs"]
+  },
   "ts-node": {
     "require": ["tsconfig-paths/register"],
     "transpileOnly": true

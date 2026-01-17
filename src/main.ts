@@ -9,6 +9,7 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 import { BotDetectionGuard } from './common/guards/bot-detection.guard';
 import { ResponseInterceptor } from './common/interceptor/response-interceptor';
+import { MikroORM } from '@mikro-orm/core';
 
 async function bootstrap() {
   // Initialize nestjs app
@@ -22,7 +23,7 @@ async function bootstrap() {
       bufferLogs: true,
       cors: {
         origin: (origin, callback) => {
-          const whitelist = ['http://localhost:3000'];
+          const whitelist = ['http://localhost:3000', 'http://localhost:5173'];
 
           if (!origin || whitelist.includes(origin)) {
             callback(null, true);
@@ -87,6 +88,11 @@ async function bootstrap() {
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
+
+  app.enableShutdownHooks();
+
+  const orm = app.get(MikroORM);
+  await orm.schema.updateSchema();
 
   await app.listen(process.env.PORT || 3000);
 }

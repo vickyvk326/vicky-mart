@@ -10,9 +10,12 @@ import { envValidationSchema, EnvVars } from './config/envValidationSchema';
 import { AuthModule } from './core/auth/auth.module';
 import { LoggerModule } from './core/logger/logger.module';
 import { RedisModule } from './core/redis/redis.module';
-import { HealthController } from './modules/health/health.controller';
 import { HealthModule } from './modules/health/health.module';
 import { UsersModule } from './modules/users/users.module';
+import { BrowserManagerService } from './scraper/browser-manager/browser-manager.service';
+import { ScraperEngineService } from './scraper/scraper-engine/scraper-engine.service';
+import { ScraperModule } from './scraper/scraper.module';
+import { EventsModule } from './core/events/events.module';
 
 @Module({
   imports: [
@@ -53,6 +56,7 @@ import { UsersModule } from './modules/users/users.module';
         autoLoadEntities: true,
         allowGlobalContext: false, // Security: forces request-forked EntityManager
         debug: config.get<string>('NODE_ENV') === 'development',
+        ensureDatabaseSchema: true,
       }),
     }),
     HealthModule,
@@ -60,9 +64,11 @@ import { UsersModule } from './modules/users/users.module';
     LoggerModule,
     UsersModule,
     AuthModule,
+    ScraperModule,
+    EventsModule,
     // ProductsModule,
     // SeedModule,
   ],
-  providers: [AppService],
+  providers: [AppService, BrowserManagerService, ScraperEngineService],
 })
 export class AppModule {}
