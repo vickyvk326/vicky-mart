@@ -57,6 +57,9 @@ import { EventsModule } from './core/events/events.module';
         allowGlobalContext: false, // Security: forces request-forked EntityManager
         debug: config.get<string>('NODE_ENV') === 'development',
         ensureDatabaseSchema: true,
+        resultCache: {
+          expiration: 1000,
+        },
       }),
     }),
     HealthModule,

@@ -1,4 +1,6 @@
 import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
+import { ThrottlerException } from '@nestjs/throttler';
+import { error } from 'console';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { PinoLogger } from 'nestjs-pino';
 
@@ -27,7 +29,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     const stack = exception instanceof Error ? exception.stack : undefined;
 
-    this.logger.error(`${request.ip} [${request.method}] ${request.url}\n${stack}`);
+    this.logger.error(
+      `${request.ip} [${request.method}] ${request.url}${stack ? ` | ERROR: ${stack}` : 'Unknown error. Stack trace not available.'}`,
+    );
 
     response.status(status).send({
       success: false,
@@ -35,8 +39,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
       statusCode: status,
       path: request.url,
       error: {
-        message: Array.isArray(message) ? message[0] : message,
-        type: isHttpException ? exception.constructor.name : 'InternalServerErrorException',
+        message: Array.isArray(message) ? message : [message],
+        type:
+          exception instanceof HttpException || exception instanceof ThrottlerException
+            ? exception.constructor.name
+            : 'InternalServerErrorException',
       },
     });
   }

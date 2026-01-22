@@ -24,6 +24,7 @@ export abstract class BaseRepository<T extends { id: string | number }> extends 
       ...options,
       limit,
       offset,
+      cache: 10000,
     } as FindOptions<T, any, any, any>);
 
     return {

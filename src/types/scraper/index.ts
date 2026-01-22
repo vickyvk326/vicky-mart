@@ -11,5 +11,6 @@ export type Flows = Flow[];
 
 export type flowResult = {
   status: JobStatus;
+  action: ScraperAction;
   data: any;
 };

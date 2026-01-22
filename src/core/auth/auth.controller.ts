@@ -1,17 +1,15 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Res, UseGuards } from '@nestjs/common';
 import { ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import type { FastifyReply } from 'fastify';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
+import { Public } from 'src/common/decorators/public.decorator';
 import { clearResCookie, COOKIE_EXPIRATION, COOKIE_NAMES, setResCookie } from '../../common/helper/cookie.helper';
 import { AuthService } from './auth.service';
 import { LoginDto, RegisterDto } from './dto/auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { type JwtUserType } from './strategies/jwt-auth.strategy';
-import { Public } from 'src/common/decorators/public.decorator';
-import { Throttle } from '@nestjs/throttler';
 import { CustomThrottlerGuard } from './guards/throttle.guard';
-import type { FastifyReply } from 'fastify';
-import { plainToInstance } from 'class-transformer';
-import { UserDto } from 'src/modules/users/dto/user.dto';
+import { type JwtUserType } from './strategies/jwt-auth.strategy';
 
 @Controller('auth')
 @UseGuards(JwtAuthGuard, CustomThrottlerGuard)

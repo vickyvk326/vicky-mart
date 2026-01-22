@@ -1,8 +1,23 @@
-import { APIRequestContext, APIResponse, Locator, Page } from 'playwright';
+import { APIRequestContext, APIResponse, BrowserContext, Locator, Page } from 'playwright';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export type ElementSelectorType = 'css' | 'xpath' | 'text' | 'id';
+
+export type NavigationOptionsType = {
+  waitForFullLoad?: boolean;
+  timeout?: number;
+  maxRetries?: number;
+  waitUntil?: 'load' | 'domcontentloaded' | 'networkidle';
+  referer?: string;
+};
+
+export type BlockHeavyResourcesOptionsType = {
+  images?: boolean;
+  media?: boolean;
+  fonts?: boolean;
+  stylesheets?: boolean;
+};
 
 export type RequestOptions = {
   headers?: Record<string, string>;
@@ -11,29 +26,68 @@ export type RequestOptions = {
   timeout?: number;
   retries?: number;
 };
+export type PaginationOptionsType = {
+  nextBtnBy?: ElementSelectorType;
+  nextBtnValue?: string;
+  maxPages?: number;
+  timeout?: number;
+  from?: Locator;
+};
+
+export type CardDefType = {
+  name: string;
+  selector: string;
+  type: ElementSelectorType;
+};
 
 class Scraper {
-  private readonly page: Page;
-  private readonly apiContext: APIRequestContext;
+  private readonly browserContext: BrowserContext;
+  private page: Page;
+  private apiContext: APIRequestContext;
   private readonly logger: (message: string) => void;
 
-  constructor(page: Page, apiContext: APIRequestContext, logger: (message: string) => void) {
-    this.page = page;
-    this.apiContext = apiContext;
+  constructor(browserContext: BrowserContext, logger: (message: string) => void) {
+    this.browserContext = browserContext;
     this.logger = logger;
+  }
+
+  async init() {
+    const page = await this.browserContext.newPage();
+    this.page = page;
+    const apiContext = this.browserContext.request;
+    this.apiContext = apiContext;
     this.logger('Scraper initialized');
   }
 
-  async navigate(
-    url: string,
-    options: {
-      waitForFullLoad?: boolean;
-      timeout?: number;
-      maxRetries?: number;
-      waitUntil?: 'load' | 'domcontentloaded' | 'networkidle';
-      referer?: string;
-    } = {},
-  ): Promise<boolean> {
+  async blockHeavyResources(
+    options: BlockHeavyResourcesOptionsType = { images: true, media: true, fonts: true, stylesheets: false },
+  ): Promise<void> {
+    this.logger('Setting up resource blocking...');
+
+    await this.page.route('**/*', async (route) => {
+      const url = route.request().url();
+      const type = route.request().resourceType();
+
+      // 1. Check for blocked domains (Ads/Analytics)
+      const isAdOrAnalytics =
+        url.includes('google-analytics.com') || url.includes('doubleclick.net') || url.includes('facebook.net');
+
+      // 2. Check for blocked resource types
+      const isBlockedType =
+        (options.images && type === 'image') ||
+        (options.media && type === 'media') ||
+        (options.fonts && type === 'font') ||
+        (options.stylesheets && type === 'stylesheet');
+
+      if (isAdOrAnalytics || isBlockedType) {
+        return route.abort();
+      }
+
+      return route.continue();
+    });
+  }
+
+  async navigate(url: string, options: NavigationOptionsType = {}): Promise<boolean> {
     const targetUrl = url.startsWith('http') ? url : `https://${url}`;
 
     const { waitForFullLoad = false, timeout = 30000, maxRetries = 2, waitUntil = 'load', referer } = options;
@@ -42,33 +96,70 @@ class Scraper {
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        await this.page.goto(targetUrl, { timeout, waitUntil, referer });
-        if (waitForFullLoad) await this.waitForFullLoad(timeout);
+        const response = await this.page.goto(targetUrl, {
+          timeout,
+          waitUntil: waitForFullLoad ? 'networkidle' : waitUntil,
+          referer,
+        });
+
+        if (response && response.status() >= 400) {
+          throw new Error(`HTTP ${response.status()}`);
+        }
+
         this.logger(`Navigated to ${targetUrl}`);
         return true;
       } catch (error) {
         lastError = error as Error;
 
         if (attempt < maxRetries) {
-          const delay = 2000 * (attempt + 1); // Exponential backoff
-          this.logger(`[WARNING] Navigation attempt ${attempt + 1} failed. Retrying in ${delay}ms...\n${error}`);
-          try {
-            await this.page?.reload();
-          } catch {
-            this.logger('[WARNING] Failed to reload page');
-          }
+          const delay = 2000 * (attempt + 1);
           await new Promise((resolve) => setTimeout(resolve, delay));
         } else {
-          return false;
+          throw new Error(
+            `Failed to navigate to ${url} after ${maxRetries} retries. Last error: ${lastError?.message}`,
+          );
         }
       }
     }
-
-    throw new Error(`Failed to navigate to ${url} after ${maxRetries} retries. Last error: ${lastError?.message}`);
+    return false;
   }
 
-  async takeScreenshot(path: string): Promise<void> {
-    await this.page.screenshot({ path, fullPage: true, type: 'png' });
+  async downloadFile(
+    triggerAction: () => Promise<void>,
+    savePath?: string,
+  ): Promise<{ path: string; filename: string }> {
+    this.logger('Waiting for download to start...');
+
+    try {
+      // 1. Start listening and trigger the action simultaneously
+      const [download] = await Promise.all([
+        this.page.waitForEvent('download', { timeout: 60000 }), // Wait up to 1 minute
+        triggerAction(),
+      ]);
+
+      const filename = download.suggestedFilename();
+      const finalPath = savePath || `./downloads/${filename}`;
+
+      // 2. Save the file to your desired location
+      await download.saveAs(finalPath);
+      this.logger(`File downloaded successfully: ${filename}`);
+
+      return { path: finalPath, filename };
+    } catch (error) {
+      this.logger(`[ERROR] Download failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async takeScreenshot(path?: string): Promise<Buffer> {
+    // screenshotBuffer.toString('base64')
+    return await this.page.screenshot({
+      path,
+      fullPage: true,
+      type: 'png',
+      animations: 'disabled', // This often prevents the font-loading hang
+      timeout: 15000, // Reduce timeout so it fails faster if there's a real issue
+    });
   }
 
   async waitForFullLoad(timeout = 60000): Promise<void> {
@@ -116,6 +207,21 @@ class Scraper {
       this.logger(`There was an error while clicking the element.`);
       return false;
     }
+  }
+
+  async autoScroll(maxScrolls: number = 10, delayMs: number = 1000): Promise<number> {
+    this.logger(`Starting auto-scroll (max: ${maxScrolls})...`);
+    let previousHeight: number = 0;
+    for (let i = 0; i < maxScrolls; i++) {
+      const currentHeight: number = await this.page.evaluate('document.body.scrollHeight');
+      if (currentHeight === previousHeight) break;
+
+      await this.page.evaluate('window.scrollTo(0, document.body.scrollHeight)');
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      previousHeight = currentHeight;
+    }
+    this.logger(`Auto-scroll completed. Final height: ${previousHeight}`);
+    return previousHeight;
   }
 
   async scrollIntoElement(
@@ -197,6 +303,19 @@ class Scraper {
     return false;
   }
 
+  async moveMouseHumanly(selector: string): Promise<void> {
+    const element = this.page.locator(selector);
+    const box = await element.boundingBox();
+    if (box) {
+      // Move to a random point inside the element
+      await this.page.mouse.move(
+        box.x + Math.random() * box.width,
+        box.y + Math.random() * box.height,
+        { steps: 10 }, // Higher steps = smoother movement
+      );
+    }
+  }
+
   async getElementByCss(
     cssSelector: string,
     options: {
@@ -251,7 +370,7 @@ class Scraper {
 
   async getElementByText(text: string, options?: { timeout?: number; from?: Locator }): Promise<Locator | null> {
     const parentLocator = options?.from ?? this.page;
-    const locator = parentLocator.locator('text=' + text);
+    const locator = parentLocator.getByText(text, { exact: false });
     await locator.first()?.waitFor({ state: 'attached', timeout: options?.timeout ?? 5000 });
     return locator.first();
   }
@@ -266,6 +385,124 @@ class Scraper {
     if (by === 'text') return this.getElementByText(value, options);
     if (by === 'id') return this.getElementByCss(`#${value}`, options);
     throw new Error('Invalid element selector type');
+  }
+
+  async scrapeCards<T = Record<string, string>>(
+    containerSelector: string,
+    containerSelectorType: ElementSelectorType,
+    cardItems: CardDefType[],
+    options: PaginationOptionsType = {},
+  ): Promise<T[]> {
+    if (!cardItems.length) return [];
+
+    const { nextBtnBy, nextBtnValue, maxPages = 5, timeout = 10000, from } = options;
+
+    const allResults: T[] = [];
+    let currentPage = 1;
+
+    while (currentPage <= maxPages) {
+      this.logger(`Processing page ${currentPage}...`);
+
+      const cards = await this.getElements(containerSelectorType, containerSelector, { from });
+      if (!cards?.length) break;
+
+      for (const card of cards) {
+        const row: Record<string, string> = {};
+        for (const item of cardItems) {
+          const element = card.locator(item.selector).first();
+          const text = (await element.isVisible()) ? await element.innerText() : null;
+          row[item.name] = text?.trim() ?? '';
+        }
+        allResults.push(row as T);
+      }
+
+      if (nextBtnBy && nextBtnValue && currentPage < maxPages) {
+        const nextButton = await this.getElement(nextBtnBy, nextBtnValue, { timeout });
+
+        if (nextButton && (await nextButton.isVisible())) {
+          this.logger(`Navigating to next page (${currentPage + 1})...`);
+
+          await Promise.all([this.page.waitForLoadState('networkidle', { timeout }), nextButton.click()]);
+
+          currentPage++;
+          // Anti-bot "Jitter" delay
+          await new Promise((r) => setTimeout(r, 1000 + Math.random() * 1000));
+        } else {
+          this.logger('No more pages found via pagination.');
+          break;
+        }
+      } else {
+        // If no pagination params or maxPages reached, exit the loop
+        break;
+      }
+    }
+
+    this.logger(`Extraction complete. Total records: ${allResults.length}`);
+    return allResults;
+  }
+
+  async scrapeTable<T = Record<string, string>>(
+    tableBy: ElementSelectorType,
+    tableValue: string,
+    options: PaginationOptionsType = {},
+  ): Promise<T[]> {
+    const { nextBtnBy, nextBtnValue, maxPages = 1, timeout = 10000, from } = options;
+
+    const allResults: T[] = [];
+    let currentPage = 1;
+
+    while (currentPage <= maxPages) {
+      this.logger(`Processing page ${currentPage}...`);
+
+      // 1. Find the Table
+      const table = await this.getElement(tableBy, tableValue, { timeout, from });
+      if (!table) {
+        this.logger(`[WARNING] Table not found on page ${currentPage}.`);
+        break;
+      }
+
+      // 2. Extract Data from current Table
+      const headers = (await table.locator('thead th, th').allTextContents())
+        .map((h) => h.trim())
+        .filter((h) => h !== '');
+
+      const rows = await table.locator('tbody tr, tr').all();
+
+      for (const row of rows) {
+        const cells = await row.locator('td').allTextContents();
+        if (cells.length === 0 || cells.every((c) => c.trim() === '')) continue;
+
+        const rowObject: Record<string, string> = {};
+        headers.forEach((header, index) => {
+          rowObject[header] = cells[index]?.trim() || '';
+        });
+        allResults.push(rowObject as T);
+      }
+
+      // 3. Check for Pagination (Only if nextBtnBy and nextBtnValue are provided)
+      if (nextBtnBy && nextBtnValue && currentPage < maxPages) {
+        const nextButton = await this.getElement(nextBtnBy, nextBtnValue, { timeout });
+
+        if (nextButton && (await nextButton.isVisible())) {
+          this.logger(`Navigating to next page (${currentPage + 1})...`);
+
+          await Promise.all([this.page.waitForLoadState('networkidle', { timeout }), nextButton.click()]);
+
+          currentPage++;
+          // Anti-bot "Jitter" delay
+          await new Promise((r) => setTimeout(r, 1000 + Math.random() * 1000));
+        } else {
+          this.logger('No more pages found via pagination.');
+          break;
+        }
+      } else {
+        // If no pagination params or maxPages reached, exit the loop
+        break;
+      }
+    }
+
+    this.logger(`Extraction complete. Total records: ${allResults.length}`);
+    return allResults;
   }
 
   async getElementsByCss(cssSelector: string, options?: { timeout?: number; from?: Locator }): Promise<Locator[]> {
@@ -300,7 +537,7 @@ class Scraper {
 
   async getElementsByText(text: string, options?: { timeout?: number; from?: Locator }): Promise<Locator[]> {
     const parentLocator = options?.from ?? this.page;
-    const locator = parentLocator.locator('text=' + text);
+    const locator = parentLocator.getByText(text, { exact: false });
     await locator.first()?.waitFor({ state: 'attached', timeout: options?.timeout ?? 5000 });
     return locator.all();
   }
@@ -320,8 +557,13 @@ class Scraper {
   async getElementText(element: Locator | null): Promise<string | null> {
     if (!element) return null;
     const text = (await element.textContent())?.trim() || null;
-    this.logger(`Got element text: ${text?.slice(0, 100)}${text?.length && text.length > 100 ? '...' : ''}`);
     return text;
+  }
+
+  async getElementTextAll(elements: Locator[] | null): Promise<Array<string | null>> {
+    if (!elements?.length) return [];
+    const texts = await Promise.all(elements.map((e) => this.getElementText(e)));
+    return texts;
   }
 
   async getElementAttribute(element: Locator, attribute: string): Promise<string | null> {
@@ -411,6 +653,18 @@ class Scraper {
 
   async post(url: string, data: any, options: RequestOptions = {}): Promise<APIResponse> {
     return this.fetchWithRetry('POST', url, { ...options, data });
+  }
+
+  async waitForApiResponse<T>(urlPattern: string | RegExp, action: () => Promise<void>): Promise<T> {
+    const [response] = await Promise.all([
+      this.page.waitForResponse(
+        (res) =>
+          (typeof urlPattern === 'string' ? res.url().includes(urlPattern) : urlPattern.test(res.url())) &&
+          res.status() === 200,
+      ),
+      action(),
+    ]);
+    return response.json() as Promise<T>;
   }
 }
 

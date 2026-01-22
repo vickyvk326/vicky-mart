@@ -10,6 +10,8 @@ import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 import { BotDetectionGuard } from './common/guards/bot-detection.guard';
 import { ResponseInterceptor } from './common/interceptor/response-interceptor';
 import { MikroORM } from '@mikro-orm/core';
+import { join } from 'path';
+import fs from 'fs';
 
 async function bootstrap() {
   // Initialize nestjs app
@@ -45,6 +47,13 @@ async function bootstrap() {
       httpOnly: true, // Prevents XSS for your JWT tokens
       secure: process.env.NODE_ENV === 'production',
     },
+  });
+
+  const publicPath = join(__dirname, '..', 'public');
+  fs.mkdirSync(publicPath, { recursive: true });
+  app.useStaticAssets({
+    root: publicPath,
+    prefix: '/public/',
   });
 
   // Enable gzip compression
