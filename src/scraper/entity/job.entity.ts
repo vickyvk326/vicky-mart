@@ -17,8 +17,8 @@ export class JobEntity extends BaseEntity {
   @Property()
   jobId: string;
 
-  @Property({ type: 'text' })
-  flow: string;
+  @Property({ type: 'jsonb' })
+  flow: Record<string, any> = {};
 
   @Enum(() => JobStatus)
   status: JobStatus = JobStatus.PENDING;

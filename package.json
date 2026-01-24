@@ -6,7 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "nest build",
+    "build": "nest build --plugins @nestjs/swagger",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "docker:up": "start \"\" \"C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe\" && timeout /t 15 /nobreak && docker-compose up -d",
     "start": "nest start",
@@ -24,7 +24,8 @@
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
-    "@fastify/static": "^9.0.0",
+    "@fastify/multipart": "^9.4.0",
+    "@fastify/static": "^8.3.0",
     "@mikro-orm/core": "^6.6.3",
     "@mikro-orm/nestjs": "^6.1.1",
     "@mikro-orm/postgresql": "^6.6.3",
@@ -71,6 +72,8 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
+    "@swc/cli": "^0.7.10",
+    "@swc/core": "^1.15.10",
     "@types/bcrypt": "^6.0.0",
     "@types/compression": "^1.8.1",
     "@types/cookie-parser": "^1.4.10",

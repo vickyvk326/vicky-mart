@@ -6,12 +6,14 @@ import { BrowserManagerService } from '../browser-manager/browser-manager.servic
 import { EventsGateway } from 'src/core/events/events-gateway.service';
 import { ScrapeOptionsDto, ScraperAction } from '../dto/flows.dto';
 import { JobRepository } from '../repository/job.repository';
-import { JobStatus } from '../entity/job.entity';
+import { JobEntity, JobStatus } from '../entity/job.entity';
 import { EntityManager } from '@mikro-orm/core';
 import fs from 'fs';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 import path from 'path';
 import JsonArray from 'src/common/helper/JsonArray';
+
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
 @Injectable()
 export class ScraperEngineService {
@@ -37,20 +39,27 @@ export class ScraperEngineService {
     return this.jobRepo.findAllWithPagination(pagination);
   }
 
-  async handleAction(scraper: Scraper, flow: Flow, jobId: string): Promise<flowResult> {
-    const job = this.jobRepo.create({
-      jobId,
-      flow: JSON.stringify({ name: flow.name, action: flow.action }),
-      status: JobStatus.PENDING,
-    });
-
-    this.em.persist(job);
-
-    await this.em.flush();
+  async handleAction(
+    scraper: Scraper,
+    flow: Flow,
+    urls: string[],
+    jobId: string,
+    isSubFlow: boolean = false,
+  ): Promise<flowResult> {
+    let job: JobEntity | { status: JobStatus } = { status: JobStatus.PENDING };
+    if (!isSubFlow) {
+      job = this.jobRepo.create({
+        jobId,
+        flow,
+        status: JobStatus.PENDING,
+      });
+      this.em.persist(job);
+      await this.em.flush();
+    }
 
     const { action, params } = flow;
 
-    let data: any;
+    let data: boolean | string | Array<string | null> | object | number | null = null;
     try {
       switch (action) {
         case ScraperAction.NAVIGATE:
@@ -96,8 +105,8 @@ export class ScraperEngineService {
           const fileName = `screenshot-${jobId}-${Date.now()}.png`;
           const filePath = path.join(process.cwd(), 'public', fileName);
           await fs.promises.writeFile(filePath, screenshotBuffer);
-          data = `/public/${fileName}`;
-          this.logAndEmitEvent(jobId, `Screenshot available at http://localhost:3000/public/${fileName}`);
+          data = `${BASE_URL}/public/${fileName}`;
+          this.logAndEmitEvent(jobId, `Screenshot available at ${data}`);
           break;
         }
 
@@ -139,8 +148,8 @@ export class ScraperEngineService {
           const fileName = `table-${jobId}-${Date.now()}.csv`;
           const filePath = path.join(process.cwd(), 'public', fileName);
           await tableJsonArray.exportToCsv(filePath);
-          data = `http://localhost:3000/public/${fileName}`;
-          this.logAndEmitEvent(jobId, `Table available at http://localhost:3000/public/${fileName}`);
+          data = `${BASE_URL}/public/${fileName}`;
+          this.logAndEmitEvent(jobId, `Table available at ${BASE_URL}/public/${fileName}`);
           break;
         }
 
@@ -158,8 +167,8 @@ export class ScraperEngineService {
           const fileName = `table-${jobId}-${Date.now()}.csv`;
           const filePath = path.join(process.cwd(), 'public', fileName);
           await tableJsonArray.exportToCsv(filePath);
-          data = `http://localhost:3000/public/${fileName}`;
-          this.logAndEmitEvent(jobId, `Table available at http://localhost:3000/public/${fileName}`);
+          data = `${BASE_URL}/public/${fileName}`;
+          this.logAndEmitEvent(jobId, `Table available at ${BASE_URL}/public/${fileName}`);
           break;
         }
 
@@ -212,23 +221,72 @@ export class ScraperEngineService {
           break;
         }
 
+        case ScraperAction.SLEEP: {
+          if (!params.value) throw new Error('Value is required for sleep action');
+          await new Promise((resolve) => setTimeout(resolve, Number(params.value || '0')));
+          break;
+        }
+
+        case ScraperAction.PROCESS_MULTIPLE_URLS: {
+          if (!urls.length) throw new Error('Urls are required for process multiple urls action');
+
+          if (!params.flows || !params.flows.length)
+            throw new Error('Flows are required for processing multiple urls action');
+
+          const runFlowResult: flowResult[] = [];
+          for (let urlIndex = 0; urlIndex < urls.length; urlIndex++) {
+            const url = urls[urlIndex];
+            this.logAndEmitEvent(jobId, `Processing url ${urlIndex + 1}/${urls.length}: ${url}`);
+
+            for (let stepIndex = 0; stepIndex < params.flows.length; stepIndex++) {
+              const step = params.flows[stepIndex];
+              step.params.url = url;
+
+              this.logAndEmitEvent(jobId, `Processing step ${stepIndex + 1}/${params.flows.length}: ${step.name}`);
+
+              const result = await this.handleAction(scraper, step, [], jobId, true);
+              runFlowResult.push(result);
+
+              if (result.status === JobStatus.FAILED) {
+                this.logAndEmitEvent(
+                  jobId,
+                  `Step ${stepIndex + 1}/${params.flows.length} failed for jobId: ${jobId}. Stopping scraping...`,
+                );
+                break;
+              }
+            }
+            this.logAndEmitEvent(
+              jobId,
+              `Completed processing url ${urlIndex + 1}/${urls.length}: ${url} for MULTIPLE_URLS jobId: ${jobId}`,
+            );
+          }
+
+          data = runFlowResult;
+          break;
+        }
+
         default: {
-          throw new Error(`Unhandled scraper action: ${action}`);
+          throw new Error(`Unhandled scraper action: ${String(action)}`);
         }
       }
 
       job.status = JobStatus.COMPLETED;
     } catch (error) {
-      this.logAndEmitEvent(jobId, `Error running action: ${flow.name} - ${error?.message}`);
-      data = String(error?.message || error || 'Unknown error');
+      data = error instanceof Error ? error.message : String(error) || 'Unknown error';
+      this.logAndEmitEvent(jobId, `Error running action: ${flow.name} - ${data}`);
       job.status = JobStatus.FAILED;
     }
 
-    await this.em.flush();
+    if (!isSubFlow) await this.em.flush();
     return { status: job.status, action, data };
   }
 
-  async runFlow(scrapeOptionsDto: ScrapeOptionsDto, flows: Flows, jobId: string): Promise<flowResult[]> {
+  async runFlow(
+    scrapeOptionsDto: ScrapeOptionsDto,
+    flows: Flows,
+    urls: string[],
+    jobId: string,
+  ): Promise<flowResult[]> {
     this.logAndEmitEvent(jobId, `Running flow with jobId: ${jobId}`);
 
     const browserContext = await this.browserManager.createNewContext(); // Create a new browser context
@@ -239,7 +297,7 @@ export class ScraperEngineService {
       media: !scrapeOptionsDto.allowMedia,
       fonts: !scrapeOptionsDto.allowFonts,
       stylesheets: !scrapeOptionsDto.allowCss,
-    }); // Block heavy resources on request choice
+    });
 
     const runFlowResult: flowResult[] = [];
     try {
@@ -247,7 +305,7 @@ export class ScraperEngineService {
       for (const step of flows) {
         this.logAndEmitEvent(jobId, `Processing step ${stepCount}/${flows.length}: ${step.name}`);
 
-        const result = await this.handleAction(scraper, step, jobId);
+        const result = await this.handleAction(scraper, step, urls, jobId);
         runFlowResult.push(result);
 
         if (result.status === JobStatus.FAILED) {

@@ -4,14 +4,19 @@
     {
       "type": "node",
       "request": "launch",
-      "name": "Debug Nest Framework",
+      "name": "Debug Nest (SWC Optimized)",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["run", "start:debug"],
       "console": "integratedTerminal",
       "restart": true,
       "sourceMaps": true,
-      "skipFiles": ["<node_internals>/**"],
-      "internalConsoleOptions": "neverOpen"
+      // Helps VS Code find the TS files when SWC moves them to dist
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "skipFiles": ["<node_internals>/**", "node_modules/**"],
+      "internalConsoleOptions": "neverOpen",
+      // Crucial for Fastify/SWC to ensure breakpoints bind correctly
+      "autoAttachChildProcesses": true,
+      "smartStep": true
     }
   ]
 }

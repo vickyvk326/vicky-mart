@@ -1,3 +1,4 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
@@ -29,6 +30,8 @@ export enum ScraperAction {
   HTTP_GET = 'HTTP_GET',
   HTTP_POST = 'HTTP_POST',
   WAIT_FOR_LOAD = 'WAIT_FOR_LOAD',
+  SLEEP = 'SLEEP',
+  PROCESS_MULTIPLE_URLS = 'PROCESS_MULTIPLE_URLS',
 }
 export class CardsItems {
   @IsString()
@@ -86,11 +89,11 @@ export class ScraperOptionsDto {
   scrollIntoElement?: boolean;
 }
 
-// 1. Convert Interface to Class for runtime validation
 export class ScraperParamsDto {
   @IsOptional()
   @IsString()
-  url?: string = 'https://google.com/';
+  @ApiPropertyOptional({ example: 'https://www.google.com/' })
+  url?: string = 'https://www.google.com/';
 
   @IsOptional()
   @IsString()
@@ -139,19 +142,28 @@ export class ScraperParamsDto {
   @ValidateNested({ each: true })
   @Type(() => CardsItems)
   cardItems?: CardsItems[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FlowItemDto)
+  flows?: FlowItemDto[];
 }
 
 export class FlowItemDto {
   @IsString()
   @IsNotEmpty()
+  @ApiProperty({ example: 'node_1' })
   name: string;
 
   @IsEnum(ScraperAction)
+  @ApiProperty({ enum: ScraperAction, enumName: 'ScraperAction' })
   action: ScraperAction;
 
   @IsObject()
   @ValidateNested()
   @Type(() => ScraperParamsDto)
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
   params: ScraperParamsDto;
 }
 
@@ -159,6 +171,7 @@ export class FlowsDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => FlowItemDto)
+  @ApiProperty({ type: [FlowItemDto] })
   flows: FlowItemDto[];
 }
 
@@ -178,4 +191,35 @@ export class ScrapeOptionsDto {
   @IsOptional()
   @IsBoolean()
   allowCss?: boolean = true;
+}
+
+export class RunFlowMultipartDto {
+  @ApiProperty({
+    description: 'JSON stringified array of FlowItemDto. Paste your JSON here.',
+    type: 'object',
+    additionalProperties: true,
+    example: [
+      {
+        name: "Navigate to NSE's holidays page.",
+        action: 'NAVIGATE',
+        params: { url: 'https://www.nseindia.com/resources/exchange-communication-holidays' },
+      },
+    ],
+  })
+  flows: string;
+
+  @ApiPropertyOptional({
+    type: 'string',
+    format: 'binary',
+    description: 'Text file containing URLs (one per line)',
+    required: false,
+  })
+  file?: any;
+
+  @ApiPropertyOptional({
+    type: [String],
+    required: false,
+    description: 'Optional array of URLs if not using a file',
+  })
+  urls?: string[];
 }

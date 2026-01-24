@@ -12,6 +12,7 @@ import { ResponseInterceptor } from './common/interceptor/response-interceptor';
 import { MikroORM } from '@mikro-orm/core';
 import { join } from 'path';
 import fs from 'fs';
+import multipart from '@fastify/multipart';
 
 async function bootstrap() {
   // Initialize nestjs app
@@ -48,6 +49,8 @@ async function bootstrap() {
       secure: process.env.NODE_ENV === 'production',
     },
   });
+
+  await app.register(multipart);
 
   const publicPath = join(__dirname, '..', 'public');
   fs.mkdirSync(publicPath, { recursive: true });

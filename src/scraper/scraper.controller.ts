@@ -1,11 +1,14 @@
-import { BadRequestException, Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post, Query, Req } from '@nestjs/common';
+import { ApiBody, ApiConsumes, ApiExtraModels } from '@nestjs/swagger';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import type { FastifyRequest } from 'fastify';
 import { randomUUID } from 'node:crypto';
+import * as readline from 'node:readline';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
-import { FlowsDto, ScrapeOptionsDto, ScraperAction } from './dto/flows.dto';
-import { ScraperEngineService } from './scraper-engine/scraper-engine.service';
-import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
-import { CustomThrottlerGuard } from 'src/core/auth/guards/throttle.guard';
 import { Flows } from 'src/types/scraper';
+import { FlowItemDto, FlowsDto, RunFlowMultipartDto, ScrapeOptionsDto, ScraperAction } from './dto/flows.dto';
+import { ScraperEngineService } from './scraper-engine/scraper-engine.service';
 
 // @UseGuards(JwtAuthGuard, CustomThrottlerGuard)
 @Controller('scrapers')
@@ -23,10 +26,71 @@ export class ScraperController {
   }
 
   @Post('run')
-  runFlow(@Query() scrapeOptionsDto: ScrapeOptionsDto, @Body() flowsDto: FlowsDto) {
+  @ApiConsumes('multipart/form-data', 'application/json')
+  @ApiExtraModels(FlowsDto, FlowItemDto)
+  @ApiBody({ type: RunFlowMultipartDto })
+  async runFlow(@Req() req: FastifyRequest, @Query() scrapeOptionsDto: ScrapeOptionsDto) {
     const jobId = randomUUID();
-    void this.scraperService.runFlow(scrapeOptionsDto, flowsDto.flows, jobId);
-    return jobId;
+
+    let urls: string[] = [];
+    let flows: FlowItemDto[] | null = null;
+
+    if (req.isMultipart()) {
+      const parts = req.parts();
+      for await (const part of parts) {
+        if (part.type === 'file') {
+          const rl = readline.createInterface({
+            input: part.file,
+            crlfDelay: Infinity,
+          });
+
+          const streamedUrls: string[] = [];
+          for await (const line of rl) {
+            const trimmed = line.trim();
+            if (trimmed) {
+              streamedUrls.push(trimmed);
+            }
+          }
+          urls = streamedUrls;
+        } else {
+          if (part.fieldname === 'flows') {
+            try {
+              const parsed = JSON.parse(part.value as string) as FlowItemDto[];
+              flows = parsed;
+            } catch (e) {
+              throw new BadRequestException('Invalid JSON in flows field');
+            }
+          } else if (part.fieldname === 'file') {
+            if (part.value) {
+              try {
+                const parsed = JSON.parse(part.value as string) as { urls: string[] };
+                urls = parsed.urls;
+              } catch (e) {
+                throw new BadRequestException('Invalid JSON in urls field');
+              }
+            }
+          }
+        }
+      }
+    } else {
+      const body = req.body as (FlowsDto & { urls?: string[] }) | undefined;
+      urls = body?.urls || [];
+      flows = body?.flows || null;
+    }
+
+    if (!flows) {
+      throw new BadRequestException('No flows provided');
+    }
+
+    const flowsDto = plainToInstance(FlowsDto, { flows });
+    const errors = await validate(flowsDto);
+    if (errors.length > 0) {
+      throw new BadRequestException(errors);
+    }
+
+    void this.scraperService.runFlow(scrapeOptionsDto, flowsDto.flows, urls, jobId);
+
+    return { jobId };
   }
 
   @Post('run-full-test')
@@ -74,15 +138,18 @@ export class ScraperController {
     ];
 
     try {
-      const results = await this.scraperService.runFlow(scrapeOptionsDto, testFlows, jobId);
+      const results = await this.scraperService.runFlow(scrapeOptionsDto, testFlows, [], jobId);
+
       return {
         jobId,
+        status: 'SUCCESS',
         message: 'Test flow executed',
         stepsExecuted: results.length,
         results,
       };
     } catch (error) {
-      throw new BadRequestException(`Test flow failed: ${error.message || error}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new BadRequestException(`Test flow failed: ${message}`);
     }
   }
 }
